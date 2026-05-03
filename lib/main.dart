@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/dashboard_screen.dart';
+import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
 
 Future<void> main() async {
@@ -53,7 +53,7 @@ class AuthGate extends StatelessWidget {
         
         final session = snapshot.data?.session;
         if (session != null) {
-          return const DashboardScreen();
+          return const MainScreen();
         }
         
         return const LoginScreen();

@@ -11,29 +11,46 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _transactions = [];
+  double _balance = 0.0;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchTransactions();
+    _fetchData();
   }
 
-  Future<void> _fetchTransactions() async {
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
     try {
-      final data = await supabase
+      // Fetch balance
+      final accountsData = await supabase
+          .from('accounts')
+          .select('balance')
+          .eq('user_id', supabase.auth.currentUser!.id)
+          .limit(1)
+          .maybeSingle();
+
+      double balance = 0.0;
+      if (accountsData != null && accountsData['balance'] != null) {
+        balance = (accountsData['balance'] as num).toDouble();
+      }
+
+      // Fetch transactions
+      final txData = await supabase
           .from('transactions')
           .select()
           .order('created_at', ascending: false);
           
       setState(() {
-        _transactions = List<Map<String, dynamic>>.from(data);
+        _balance = balance;
+        _transactions = List<Map<String, dynamic>>.from(txData);
         _isLoading = false;
       });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar transacciones: $e')),
+          SnackBar(content: Text('Error al cargar datos: $e')),
         );
       }
       setState(() => _isLoading = false);
@@ -72,14 +89,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final amount = double.tryParse(amountController.text);
               if (amount != null && amount > 0) {
                 try {
+                  // Add transaction
                   await supabase.from('transactions').insert({
                     'amount': amount,
                     'description': descriptionController.text.isEmpty ? 'Fondeo' : descriptionController.text,
-                    'status': 'pending',
+                    'status': 'completed',
                     'user_id': supabase.auth.currentUser!.id,
                   });
+
+                  // Update balance
+                  final accountsData = await supabase
+                      .from('accounts')
+                      .select('id, balance')
+                      .eq('user_id', supabase.auth.currentUser!.id)
+                      .limit(1)
+                      .maybeSingle();
+                  
+                  if (accountsData != null) {
+                    await supabase.from('accounts').update({
+                      'balance': (accountsData['balance'] as num).toDouble() + amount,
+                    }).eq('id', accountsData['id']);
+                  } else {
+                    // Create account if not exists
+                    await supabase.from('accounts').insert({
+                      'user_id': supabase.auth.currentUser!.id,
+                      'account_type': 'checking',
+                      'balance': amount,
+                    });
+                  }
+
                   if (mounted) Navigator.pop(context);
-                  _fetchTransactions();
+                  _fetchData();
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -99,7 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _cancelTransaction(String id) async {
     try {
       await supabase.from('transactions').delete().eq('id', id);
-      _fetchTransactions();
+      _fetchData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Pago cancelado exitosamente')),
@@ -114,10 +154,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _completeTransaction(String id) async {
+  Future<void> _completeTransaction(Map<String, dynamic> t) async {
     try {
-      await supabase.from('transactions').update({'status': 'completed'}).eq('id', id);
-      _fetchTransactions();
+      await supabase.from('transactions').update({'status': 'completed'}).eq('id', t['id']);
+      
+      // Also sum to balance
+      final amount = ((t['amount'] ?? 0) as num).toDouble();
+      final accountsData = await supabase
+          .from('accounts')
+          .select('id, balance')
+          .eq('user_id', supabase.auth.currentUser!.id)
+          .limit(1)
+          .maybeSingle();
+      
+      if (accountsData != null) {
+        await supabase.from('accounts').update({
+          'balance': (accountsData['balance'] as num).toDouble() + amount,
+        }).eq('id', accountsData['id']);
+      } else {
+        await supabase.from('accounts').insert({
+          'user_id': supabase.auth.currentUser!.id,
+          'account_type': 'checking',
+          'balance': amount,
+        });
+      }
+
+      _fetchData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Pago completado')),
@@ -132,18 +194,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    await supabase.auth.signOut();
-  }
-
-  double get _balance {
-    return _transactions.fold(0.0, (sum, item) {
-      // Assuming completed transactions count towards balance, or all positive ones
-      // For simplicity, we add all amounts. In a real app, logic would depend on transaction type.
-      return sum + ((item['amount'] ?? 0) as num).toDouble();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,17 +201,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Mi Cuenta', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.blueAccent,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _signOut,
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _fetchTransactions,
+              onRefresh: _fetchData,
               child: Column(
                 children: [
                   _buildBalanceCard(),
@@ -269,7 +313,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             PopupMenuButton<String>(
               onSelected: (value) {
-                if (value == 'complete') _completeTransaction(t['id']);
+                if (value == 'complete') _completeTransaction(t);
                 if (value == 'cancel') _cancelTransaction(t['id']);
               },
               itemBuilder: (BuildContext context) => [
