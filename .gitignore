@@ -12,6 +12,16 @@
 .swiftpm/
 migrate_working_dir/
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node.js
+node_modules/
+package-lock.json
+package.json
+
 # IntelliJ related
 *.iml
 *.ipr
