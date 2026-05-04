@@ -84,10 +84,11 @@ class _TransferScreenState extends State<TransferScreen> {
                     'account_number': accountController.text,
                     'bank_name': bankController.text.isEmpty ? 'N/A' : bankController.text,
                   });
-                  if (mounted) Navigator.pop(context);
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
                   _fetchContacts();
                 } catch (e) {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Error: $e')),
                     );
@@ -133,7 +134,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       .maybeSingle();
 
                   if (accountData == null || (accountData['balance'] as num).toDouble() < amount) {
-                    if (mounted) {
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Saldo insuficiente')),
                       );
@@ -154,14 +155,14 @@ class _TransferScreenState extends State<TransferScreen> {
                     'balance': (accountData['balance'] as num).toDouble() - amount,
                   }).eq('id', accountData['id']);
 
-                  if (mounted) {
+                  if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Transferencia exitosa')),
                     );
                   }
                 } catch (e) {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Error: $e')),
                     );

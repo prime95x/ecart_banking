@@ -118,10 +118,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     });
                   }
 
-                  if (mounted) Navigator.pop(context);
+                  if (!context.mounted) return;
+                  Navigator.pop(context);
                   _fetchData();
                 } catch (e) {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Error: $e')),
                     );
@@ -257,7 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(16.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.blueAccent.withOpacity(0.3),
+            color: Colors.blueAccent.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -296,7 +297,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isCompleted ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+          backgroundColor: isCompleted ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
           child: Icon(
             Icons.monetization_on,
             color: isCompleted ? Colors.green : Colors.orange,
